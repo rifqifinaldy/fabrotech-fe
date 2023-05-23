@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
 import styles from "../styles/Home.module.css";
 import { IProducts } from "../types/product.type";
@@ -5,15 +6,66 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 
 export async function getServerSideProps() {
-  const response = await fetch("https://dummyjson.com/products");
+  const response = await fetch("https://dummyjson.com/products?limit=3");
   const json = await response.json();
   const data = json.products;
   return { props: { data } };
 }
 
 export default function Home(props: { data: IProducts[] }) {
-  const { data } = props;
+  const { data: initialData } = props;
   const { push } = useRouter();
+  const [data, setData] = useState(initialData);
+  const [limit, setLimit] = useState(3);
+  const [loading, setLoading] = useState(false);
+
+  const loadMoreData = useCallback(async () => {
+    console.log("loadMore");
+    if (!loading) {
+      setLoading(true);
+      const response = await fetch(
+        `https://dummyjson.com/products?limit=${limit + 3}`
+      );
+      const json = await response.json();
+      const newData = json.products;
+      setData(newData);
+      setLimit(limit + 3);
+      setLoading(false);
+    }
+  }, [loading, limit]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + document.documentElement.scrollTop >=
+        document.documentElement.offsetHeight -1
+      ) {
+        loadMoreData();
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [loadMoreData]);
+
+  const renderImages = (images: any) => {
+    return images.map((image: any) => (
+      <Image
+        key={image}
+        priority={true}
+        width={200}
+        height={100}
+        src={image}
+        alt={image}
+      />
+    ));
+  };
+
+  const handleClick = (id: number) => {
+    push(`/${id}`);
+  };
 
   return (
     <>
@@ -24,48 +76,35 @@ export default function Home(props: { data: IProducts[] }) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <main>
-        {data.map((data) => {
-          const renderImages: any = (images: any) => {
-            return images.map((image: any) => (
+        <h2>Scroll to bottom and the items will be updated</h2>
+        {data.map((item) => (
+          <div
+            className={styles.card}
+            key={item.id}
+            onClick={() => handleClick(item.id)}
+          >
+            <h1 className={styles.cardTitle}>{item.title}</h1>
+            <div className={styles.cardContent}>
               <Image
-                key={image}
                 priority={true}
-                width={200}
-                height={100}
-                src={image}
-                alt={image}
+                width={400}
+                height={200}
+                src={item.thumbnail}
+                alt={item.title}
               />
-            ));
-          };
-          return (
-            <div
-              className={styles.card}
-              key={data.id}
-              onClick={() => push("/" + data.id)}
-            >
-              <h1 className={styles.cardTitle}>{data.title}</h1>
-              <div className={styles.cardContent}>
-                <Image
-                  priority={true}
-                  width={400}
-                  height={200}
-                  src={data.thumbnail}
-                  alt={data.title}
-                />
-                <ul>
-                  <li>Description : {data.description}</li>
-                  <li>Price : {data.price}</li>
-                  <li>Discount : {data.discountPercentage} %</li>
-                  <li>Rating : {data.rating}</li>
-                  <li>Stock : {data.stock}</li>
-                </ul>
-              </div>
-              <div className={styles.cardImages}>
-                {renderImages(data.images)}
-              </div>
+              <ul>
+                <li>Description : {item.description}</li>
+                <li>Price : {item.price}</li>
+                <li>Discount : {item.discountPercentage} %</li>
+                <li>Rating : {item.rating}</li>
+                <li>Stock : {item.stock}</li>
+              </ul>
             </div>
-          );
-        })}
+            <div className={styles.cardImages}>{renderImages(item.images)}</div>
+          </div>
+        ))}
+
+        {loading && <p>Loading...</p>}
       </main>
     </>
   );
